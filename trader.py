@@ -7,6 +7,8 @@ import os
 from datetime import datetime
 import sys
 
+# ---------- MARKET DATA ----------
+
 def get_indicators(ticker):
 data = yf.download(ticker, period="2y", interval="1d", progress=False)
 
@@ -29,33 +31,140 @@ return {
 }
 ```
 
+# ---------- SIGNAL ENGINE ----------
+
 def generate_signal(ind):
 score = 0
-reasons = []
 
 ```
 if ind["ma50"] is not None:
-    if ind["price"] > ind["ma50"]:
-        score += 1
-        reasons.append("Above MA50")
-    else:
-        score -= 1
-        reasons.append("Below MA50")
+    score += 1 if ind["price"] > ind["ma50"] else -1
 
 if ind["ma200"] is not None:
-    if ind["price"] > ind["ma200"]:
-        score += 1
-        reasons.append("Above MA200")
-    else:
-        score -= 1
-        reasons.append("Below MA200")
+    score += 1 if ind["price"] > ind["ma200"] else -1
 
 if ind["rsi"] is not None:
     if ind["rsi"] < 30:
         score += 1
-        reasons.append("RSI oversold")
     elif ind["rsi"] > 70:
         score -= 1
-        reasons.append("RSI o
+
+if score >= 2:
+    signal = "BUY"
+elif score <= -2:
+    signal = "SELL"
+else:
+    signal = "NEUTRAL"
+
+confidence = int(abs(score) / 3 * 100)
+return signal, confidence
 ```
+
+# ---------- CSV HISTORY ----------
+
+def write_csv(timestamp, ticker, ind, signal, confidence):
+os.makedirs("data", exist_ok=True)
+file = "data/signal_history.csv"
+
+```
+new_file = not os.path.exists(file)
+
+with open(file, "a", newline="") as f:
+    writer = csv.writer(f)
+
+    if new_file:
+        writer.writerow([
+            "timestamp","ticker","price","ma50","ma200","rsi","signal","confidence"
+        ])
+
+    writer.writerow([
+        timestamp,
+        ticker,
+        ind["price"],
+        ind["ma50"],
+        ind["ma200"],
+        ind["rsi"],
+        signal,
+        confidence
+    ])
+```
+
+# ---------- SIGNAL CHANGE TRACKING ----------
+
+def check_signal_change(ticker, new_signal):
+file = "data/last_signals.csv"
+os.makedirs("data", exist_ok=True)
+
+```
+last = {}
+
+if os.path.exists(file):
+    with open(file) as f:
+        for row in csv.reader(f):
+            if len(row) == 2:
+                last[row[0]] = row[1]
+
+changed = ticker not in last or last[ticker] != new_signal
+last[ticker] = new_signal
+
+with open(file, "w", newline="") as f:
+    writer = csv.writer(f)
+    for k, v in last.items():
+        writer.writerow([k, v])
+
+return changed
+```
+
+# ---------- TELEGRAM ALERT ----------
+
+def send_telegram(msg):
+token = os.environ.get("8706787487:AAEuAgQLThHffIOV6LH8fY86OKMPlpJk5QE")
+chat = os.environ.get("TELEGRAM_CHAT")
+
+```
+if not token or not chat:
+    return
+
+url = f"https://api.telegram.org/bot{token}/sendMessage"
+try:
+    requests.post(url, json={"chat_id": chat, "text": msg}, timeout=10)
+except Exception:
+    pass
+```
+
+# ---------- MAIN ----------
+
+def main():
+if len(sys.argv) < 2:
+print("Usage: python trader.py TICKER1 TICKER2 ...")
+return
+
+```
+tickers = [t.upper() for t in sys.argv[1:]]
+timestamp = datetime.utcnow().isoformat()
+
+for ticker in tickers:
+    print(f"\nAnalyzing {ticker}...")
+
+    try:
+        ind = get_indicators(ticker)
+        signal, confidence = generate_signal(ind)
+
+        write_csv(timestamp, ticker, ind, signal, confidence)
+
+        changed = check_signal_change(ticker, signal)
+
+        print(f"Signal: {signal} ({confidence}%)  Price: {ind['price']}")
+
+        if changed:
+            msg = f"⚠ Signal change for {ticker}: {signal} ({confidence}%)"
+            print(msg)
+            send_telegram(msg)
+
+    except Exception as e:
+        print("Error:", e)
+```
+
+if **name** == "**main**":
+main()
 
