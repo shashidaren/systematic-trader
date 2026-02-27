@@ -9,8 +9,11 @@ import sys
 
 
 def send_telegram(msg):
-    token = os.environ.get("8706787487:AAEuAgQLThHffIOV6LH8fY86OKMPlpJk5QE")
-    chat = os.environ.get("8447374505")
+    print("DEBUG: sending telegram:", msg)
+    token = os.environ.get("TELEGRAM_TOKEN")
+    chat = os.environ.get("TELEGRAM_CHAT")
+    #token = os.environ.get("8706787487:AAEuAgQLThHffIOV6LH8fY86OKMPlpJk5QE")
+    #chat = os.environ.get("8447374505")
 
     if not token or not chat:
         return
