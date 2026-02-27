@@ -30,7 +30,7 @@ jobs:
         run: mkdir -p data
 
       - name: Run signal script
-        run: python trader.py EURUSD=X
+        run: python trader.py EURUSD=X BTC-USD XAUUSD=X AAPL TSLA
 
       - name: Commit signal log
         run: |
