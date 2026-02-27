@@ -2,8 +2,11 @@ name: Daily Market Signal
 
 on:
   schedule:
-    - cron: '0 1 * * *'   # Runs daily at 01:00 UTC
+    - cron: '0 1 * * *'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   run-signal:
@@ -20,11 +23,14 @@ jobs:
 
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Ensure data folder exists
+        run: mkdir -p data
+
       - name: Run signal script
-        run: |
-          python trader.py EURUSD=X
+        run: python trader.py EURUSD=X
 
       - name: Commit signal log
         run: |
