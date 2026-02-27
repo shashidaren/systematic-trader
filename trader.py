@@ -114,6 +114,14 @@ def timing_hint(ind):
 
 
 def suggested_action(signal, hints):
+
+from datetime import datetime
+
+log_line = f"{datetime.utcnow().isoformat()} | {ticker} | {signal} | {confidence}% | {action}\n"
+
+with open("data/signals.log", "a") as f:
+    f.write(log_line)
+
     if signal == "BUY":
         for h in hints:
             if "extended" in h:
