@@ -43,14 +43,15 @@ def generate_signal(ind):
     max_score = 3
     reasons = []
 
-    if ind["price"] > ind["ma50"]:
-        score += 1
-        reasons.append("Price above MA50 (short-term bullish)")
-    else:
-        score -= 1
-        reasons.append("Price below MA50 (short-term bearish)")
+    if ind["ma50"] is not None:
+        if ind["price"] > ind["ma50"]:
+            score += 1
+            reasons.append("Price above MA50 (short-term bullish)")
+        else:
+            score -= 1
+            reasons.append("Price below MA50 (short-term bearish)")
 
-    if ind["ma200"]:
+    if ind["ma200"] is not None:
         if ind["price"] > ind["ma200"]:
             score += 1
             reasons.append("Above MA200 (long-term bullish)")
@@ -58,7 +59,7 @@ def generate_signal(ind):
             score -= 1
             reasons.append("Below MA200 (long-term bearish)")
 
-    if ind["rsi"]:
+    if ind["rsi"] is not None:
         if ind["rsi"] < 30:
             score += 1
             reasons.append("RSI oversold (bounce possible)")
@@ -87,7 +88,7 @@ def timing_hint(ind):
     rsi = ind["rsi"]
     series = ind["series"]
 
-    if ma50:
+    if ma50 is not None:
         distance = (price - ma50) / ma50
 
         if distance < -0.05:
@@ -104,7 +105,7 @@ def timing_hint(ind):
         else:
             hints.append("Short-term momentum weakening")
 
-    if rsi:
+    if rsi is not None:
         if rsi < 35:
             hints.append("RSI low → watch for bounce setup")
         elif rsi > 65:
@@ -114,13 +115,6 @@ def timing_hint(ind):
 
 
 def suggested_action(signal, hints):
-
-from datetime import datetime
-
-log_line = f"{datetime.utcnow().isoformat()} | {ticker} | {signal} | {confidence}% | {action}\n"
-
-with open("data/signals.log", "a") as f:
-    f.write(log_line)
 
     if signal == "BUY":
         for h in hints:
@@ -141,6 +135,8 @@ with open("data/signals.log", "a") as f:
 
 def main():
     import sys
+    from datetime import datetime
+    import os
 
     if len(sys.argv) < 2:
         print("Usage: python trader.py TICKER")
@@ -155,6 +151,12 @@ def main():
     signal, confidence, reasons, score = generate_signal(indicators)
     hints = timing_hint(indicators)
     action = suggested_action(signal, hints)
+
+    # ✅ Logging
+    os.makedirs("data", exist_ok=True)
+    log_line = f"{datetime.utcnow().isoformat()} | {ticker} | {signal} | {confidence}% | {action}\n"
+    with open("data/signals.log", "a") as f:
+        f.write(log_line)
 
     print("Indicators:", {k:v for k,v in indicators.items() if k != "series"})
     print(f"\nMarket Bias: {signal} (Confidence: {confidence}%)")
