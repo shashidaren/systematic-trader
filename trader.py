@@ -118,7 +118,7 @@ return changed
 # ---------- TELEGRAM ALERT ----------
 
 def send_telegram(msg):
-token = os.environ.get("8706787487:AAEuAgQLThHffIOV6LH8fY86OKMPlpJk5QE")
+token = os.environ.get("TELEGRAM_TOKEN")
 chat = os.environ.get("TELEGRAM_CHAT")
 
 ```
@@ -132,6 +132,25 @@ except Exception:
     pass
 ```
 
+# ---------- SUMMARY OUTPUT ----------
+
+def print_summary(results):
+if not results:
+return
+
+```
+print("\n=== Daily Signal Summary ===")
+
+results.sort(key=lambda x: x["confidence"], reverse=True)
+
+for r in results:
+    print(f"{r['ticker']:10}  {r['signal']:7}  {r['confidence']:3}%   price={r['price']:.4f}")
+
+strongest = results[0]
+print("\nTop signal today:")
+print(f"{strongest['ticker']} → {strongest['signal']} ({strongest['confidence']}%)")
+```
+
 # ---------- MAIN ----------
 
 def main():
@@ -142,6 +161,8 @@ return
 ```
 tickers = [t.upper() for t in sys.argv[1:]]
 timestamp = datetime.utcnow().isoformat()
+
+results = []
 
 for ticker in tickers:
     print(f"\nAnalyzing {ticker}...")
@@ -161,8 +182,17 @@ for ticker in tickers:
             print(msg)
             send_telegram(msg)
 
+        results.append({
+            "ticker": ticker,
+            "signal": signal,
+            "confidence": confidence,
+            "price": ind["price"]
+        })
+
     except Exception as e:
         print("Error:", e)
+
+print_summary(results)
 ```
 
 if **name** == "**main**":
