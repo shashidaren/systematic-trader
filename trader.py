@@ -3,8 +3,27 @@ import pandas as pd
 from ta.momentum import RSIIndicator
 import csv
 import os
+import requests
 from datetime import datetime
 import sys
+
+
+def send_telegram(msg):
+    token = os.environ.get("8706787487:AAEuAgQLThHffIOV6LH8fY86OKMPlpJk5QE")
+    chat = os.environ.get("8447374505")
+
+    if not token or not chat:
+        return
+
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+
+    try:
+        requests.post(url, json={
+            "chat_id": chat,
+            "text": msg
+        }, timeout=10)
+    except Exception:
+        pass
 
 
 def get_indicators(ticker):
@@ -114,7 +133,11 @@ def main():
 
             write_csv(timestamp, ticker, ind, signal, confidence)
 
-            print(f"Signal: {signal} ({confidence}%)  Price: {ind['price']}")
+            msg = f"{ticker}: {signal} ({confidence}%) price={ind['price']:.4f}"
+            print(msg)
+
+            # send Telegram alert
+            send_telegram(msg)
 
             results.append({
                 "ticker": ticker,
