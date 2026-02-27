@@ -7,8 +7,6 @@ import os
 from datetime import datetime
 import sys
 
-# ---------- MARKET DATA ----------
-
 def get_indicators(ticker):
 data = yf.download(ticker, period="2y", interval="1d", progress=False)
 
@@ -30,8 +28,6 @@ return {
     "series": close
 }
 ```
-
-# ---------- SIGNAL ENGINE ----------
 
 def generate_signal(ind):
 score = 0
@@ -60,8 +56,6 @@ confidence = int(abs(score) / 3 * 100)
 return signal, confidence
 ```
 
-# ---------- CSV HISTORY ----------
-
 def write_csv(timestamp, ticker, ind, signal, confidence):
 os.makedirs("data", exist_ok=True)
 file = "data/signal_history.csv"
@@ -89,8 +83,6 @@ with open(file, "a", newline="") as f:
     ])
 ```
 
-# ---------- SIGNAL CHANGE TRACKING ----------
-
 def check_signal_change(ticker, new_signal):
 file = "data/last_signals.csv"
 os.makedirs("data", exist_ok=True)
@@ -115,25 +107,6 @@ with open(file, "w", newline="") as f:
 return changed
 ```
 
-# ---------- TELEGRAM ALERT ----------
-
-def send_telegram(msg):
-token = os.environ.get("TELEGRAM_TOKEN")
-chat = os.environ.get("TELEGRAM_CHAT")
-
-```
-if not token or not chat:
-    return
-
-url = f"https://api.telegram.org/bot{token}/sendMessage"
-try:
-    requests.post(url, json={"chat_id": chat, "text": msg}, timeout=10)
-except Exception:
-    pass
-```
-
-# ---------- SUMMARY OUTPUT ----------
-
 def print_summary(results):
 if not results:
 return
@@ -150,8 +123,6 @@ strongest = results[0]
 print("\nTop signal today:")
 print(f"{strongest['ticker']} → {strongest['signal']} ({strongest['confidence']}%)")
 ```
-
-# ---------- MAIN ----------
 
 def main():
 if len(sys.argv) < 2:
@@ -178,9 +149,7 @@ for ticker in tickers:
         print(f"Signal: {signal} ({confidence}%)  Price: {ind['price']}")
 
         if changed:
-            msg = f"⚠ Signal change for {ticker}: {signal} ({confidence}%)"
-            print(msg)
-            send_telegram(msg)
+            print(f"⚠ Signal change for {ticker}: {signal}")
 
         results.append({
             "ticker": ticker,
