@@ -37,10 +37,15 @@ jobs:
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"
           git add data/signals.log
+
+          # Use if/else with a clear closing 'fi'
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
             git commit -m "Daily signal update"
+            # Pull before push to handle the "rejected" error
+            git pull --rebase origin main
             git push
           fi
+
 
