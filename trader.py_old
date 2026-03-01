@@ -1,79 +1,80 @@
 import yfinance as yf
 import pandas as pd
 from ta.momentum import RSIIndicator
-from ta.volatility import AverageTrueRange
 import csv
 import os
+import requests
 from datetime import datetime
 import sys
 
 
-# ===============================
-# Telegram (Disabled)
-# ===============================
 def send_telegram(msg):
-    # Disabled intentionally
-    return
+    print("DEBUG: sending telegram:", msg)
+    
+    #token = os.environ.get("TELEGRAM_TOKEN")
+    #chat = os.environ.get("TELEGRAM_CHAT")
+    token = None # Force it to None
+    chat = None
 
+    if not token or not chat:
+        return
 
-# ===============================
-# Indicator Calculation
-# ===============================
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+
+    try:
+        requests.post(url, json={
+            "chat_id": chat,
+            "text": msg
+        }, timeout=10)
+    except Exception:
+        pass
+
 def get_indicators(ticker):
     data = yf.download(ticker, period="2y", interval="1d", progress=False)
 
     if data.empty:
         raise Exception(f"No market data for {ticker}")
 
-    # Force columns to 1D Series
     close = data["Close"].squeeze()
-    high = data["High"].squeeze()
-    low = data["Low"].squeeze()
 
     ma50 = close.rolling(50).mean()
     ma200 = close.rolling(200).mean()
     rsi = RSIIndicator(close).rsi()
-    atr = AverageTrueRange(high, low, close, window=14).average_true_range()
 
     return {
         "price": float(close.iloc[-1]),
         "ma50": float(ma50.iloc[-1]) if pd.notna(ma50.iloc[-1]) else None,
         "ma200": float(ma200.iloc[-1]) if pd.notna(ma200.iloc[-1]) else None,
         "rsi": float(rsi.iloc[-1]) if pd.notna(rsi.iloc[-1]) else None,
-        "atr": float(atr.iloc[-1]) if pd.notna(atr.iloc[-1]) else None,
     }
 
-# ===============================
-# Strategy Logic
-# ===============================
+
 def generate_signal(ind):
-    if ind["ma200"] is None or ind["atr"] is None:
-        return "NEUTRAL", 0, None, None
+    score = 0
 
-    price = ind["price"]
-    atr = ind["atr"]
+    if ind["ma50"] is not None:
+        score += 1 if ind["price"] > ind["ma50"] else -1
 
-    # Trend filter
-    trend_up = price > ind["ma200"]
+    if ind["ma200"] is not None:
+        score += 1 if ind["price"] > ind["ma200"] else -1
 
-    # Entry condition (Long only)
-    if trend_up and ind["rsi"] is not None and 40 < ind["rsi"] < 65:
+    if ind["rsi"] is not None:
+        if ind["rsi"] < 30:
+            score += 1
+        elif ind["rsi"] > 70:
+            score -= 1
+
+    if score >= 2:
         signal = "BUY"
-        stop = price - (1.5 * atr)
-        target = price + (3 * atr)
-        confidence = 75
+    elif score <= -2:
+        signal = "SELL"
     else:
         signal = "NEUTRAL"
-        stop = None
-        target = None
-        confidence = 40
 
-    return signal, confidence, stop, target
+    confidence = int(abs(score) / 3 * 100)
+    return signal, confidence
 
 
-# ===============================
-# CSV Logging
-# ===============================
 def write_csv(timestamp, ticker, ind, signal, confidence):
     os.makedirs("data", exist_ok=True)
     file = "data/signal_history.csv"
@@ -85,9 +86,7 @@ def write_csv(timestamp, ticker, ind, signal, confidence):
 
         if new_file:
             writer.writerow([
-                "timestamp", "ticker", "price",
-                "ma50", "ma200", "rsi", "atr",
-                "signal", "confidence"
+                "timestamp","ticker","price","ma50","ma200","rsi","signal","confidence"
             ])
 
         writer.writerow([
@@ -97,33 +96,27 @@ def write_csv(timestamp, ticker, ind, signal, confidence):
             ind["ma50"],
             ind["ma200"],
             ind["rsi"],
-            ind["atr"],
             signal,
             confidence
         ])
 
 
-# ===============================
-# Summary Print
-# ===============================
 def print_summary(results):
     if not results:
         return
 
     print("\n=== Daily Signal Summary ===")
+
     results.sort(key=lambda x: x["confidence"], reverse=True)
 
     for r in results:
-        print(f"{r['ticker']:10} {r['signal']:8} {r['confidence']:3}%  price={r['price']:.2f}")
+        print(f"{r['ticker']:10}  {r['signal']:7}  {r['confidence']:3}%   price={r['price']:.4f}")
 
     strongest = results[0]
     print("\nTop signal today:")
     print(f"{strongest['ticker']} → {strongest['signal']} ({strongest['confidence']}%)")
 
 
-# ===============================
-# Main Execution
-# ===============================
 def main():
     if len(sys.argv) < 2:
         print("Usage: python trader.py TICKER1 TICKER2 ...")
@@ -139,20 +132,14 @@ def main():
 
         try:
             ind = get_indicators(ticker)
-            signal, confidence, stop, target = generate_signal(ind)
+            signal, confidence = generate_signal(ind)
 
             write_csv(timestamp, ticker, ind, signal, confidence)
 
-            # Calculate Risk/Reward if applicable
-            if stop is not None and target is not None:
-                rr = (target - ind["price"]) / (ind["price"] - stop)
-                msg = (f"{ticker}: {signal} ({confidence}%) "
-                       f"price={ind['price']:.2f} "
-                       f"SL={stop:.2f} TP={target:.2f} RR={rr:.2f}")
-            else:
-                msg = f"{ticker}: {signal} ({confidence}%) price={ind['price']:.2f}"
-
+            msg = f"{ticker}: {signal} ({confidence}%) price={ind['price']:.4f}"
             print(msg)
+
+            # send Telegram alert
             send_telegram(msg)
 
             results.append({
